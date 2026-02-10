@@ -1,0 +1,50 @@
+services:
+    # Auth Service Database
+    auth-db:
+        image: postgres:16-alpine
+        container_name: jiralite-auth-db
+        restart: always
+        environment:
+            POSTGRES_USER: ${POSTGRES_USER:-admin}
+            POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+            POSTGRES_DB: JiraLiteAuthDb
+        ports:
+            - "5432:5432"
+        volumes:
+            - auth_postgres_data:/var/lib/postgresql/data
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    "pg_isready -U ${POSTGRES_USER:-admin} -d JiraLiteAuthDb",
+                ]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+
+    # Main API Database
+    main-db:
+        image: postgres:16-alpine
+        container_name: jiralite-main-db
+        restart: always
+        environment:
+            POSTGRES_USER: ${POSTGRES_USER:-admin}
+            POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+            POSTGRES_DB: JiraLiteMainDb
+        ports:
+            - "5433:5432"
+        volumes:
+            - main_postgres_data:/var/lib/postgresql/data
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    "pg_isready -U ${POSTGRES_USER:-admin} -d JiraLiteMainDb",
+                ]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+
+volumes:
+    auth_postgres_data:
+    main_postgres_data:

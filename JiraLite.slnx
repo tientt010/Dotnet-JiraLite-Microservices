@@ -1,0 +1,8 @@
+<Solution>
+  <Project Path="JiraLite.Api/JiraLite.Api.csproj" />
+  <Project Path="JiraLite.Auth.Api/JiraLite.Auth.Api.csproj" />
+  <Project Path="JiraLite.Auth.Infrastructure/JiraLite.Auth.Infrastructure.csproj" />
+  <Project Path="JiraLite.Authorization/JiraLite.Authorization.csproj" />
+  <Project Path="JiraLite.Infrastructure/JiraLite.Infrastructure.csproj" />
+  <Project Path="JiraLite.Share/JiraLite.Share.csproj" />
+</Solution>
