@@ -5,12 +5,21 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
-
+  
+  
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  
   <ItemGroup>
     <Folder Include="Constants\" />
     <Folder Include="Extensions\" />
     <Folder Include="Handlers\" />
     <Folder Include="Requirements\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\JiraLite.Infrastructure\JiraLite.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

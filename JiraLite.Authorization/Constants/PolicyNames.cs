@@ -1,6 +1,6 @@
 using System;
 
-namespace JiraLite.Share.Constants;
+namespace JiraLite.Authorization.Constants;
 
 public static class PolicyNames
 {

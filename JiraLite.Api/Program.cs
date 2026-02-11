@@ -1,8 +1,10 @@
 using JiraLite.Api.Apis;
 using JiraLite.Api.Bootstraping;
+using JiraLite.Authorization.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.AddApplicationServices();
+builder.AddJiraLiteAuthorization();
 
 
 var app = builder.Build();
@@ -14,8 +16,8 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-// app.UseAuthentication();
-// app.UseAuthorization();
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapJiraLiteApi();
 

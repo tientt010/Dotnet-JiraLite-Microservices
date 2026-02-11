@@ -1,4 +1,5 @@
 using System;
+using JiraLite.Authorization.Constants;
 using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace JiraLite.Api.Apis;
@@ -10,7 +11,8 @@ public static class ProjectsApi
         var projects = group.MapGroup("/projects").WithTags("Projects");
 
         projects.MapGet("/", GetAllProjectsAsync);
-        projects.MapGet("/{projectId:guid}", GetProjectByIdAsync);
+        projects.MapGet("/{projectId:guid}", GetProjectByIdAsync)
+            .RequireAuthorization(PolicyNames.ProjectMember);
         projects.MapPost("/", CreateProjectAsync);
         projects.MapPut("{projectId:guid}", UpdateProjectAsync);
         projects.MapDelete("{projectId:guid}", DeleteProjectAsync);
@@ -63,9 +65,9 @@ public static class ProjectsApi
         throw new NotImplementedException();
     }
 
-    private static async Task GetProjectByIdAsync(HttpContext context)
+    private static async Task<Results<Ok<Guid>, BadRequest>> GetProjectByIdAsync(Guid projectId)
     {
-        throw new NotImplementedException();
+        return TypedResults.Ok(projectId);
     }
 
     private static async Task<Ok> GetAllProjectsAsync()

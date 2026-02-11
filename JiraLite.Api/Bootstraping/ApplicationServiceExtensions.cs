@@ -1,7 +1,11 @@
 using System;
+using System.Text;
 using Asp.Versioning;
 using JiraLite.Infrastructure.Data;
+using JiraLite.Share.Settings;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Tokens;
 
 namespace JiraLite.Api.Bootstraping;
 
@@ -25,6 +29,29 @@ public static class ApplicationServiceExtensions
         builder.Services.AddNpgsql<JiraLiteDbContext>(
             builder.Configuration.GetConnectionString("PostgreSqlConnection")
         );
+
+        builder.Services.Configure<JwtSettings>(
+            builder.Configuration.GetSection("JwtSettings"));
+
+        builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+            .AddJwtBearer(options =>
+            {
+                var jwtSettings = builder.Services.BuildServiceProvider()
+                    .GetRequiredService<IOptions<JwtSettings>>()
+                    .Value;
+
+                options.TokenValidationParameters = new TokenValidationParameters
+                {
+                    ValidateIssuer = true,
+                    ValidateAudience = true,
+                    ValidateLifetime = true,
+                    ValidateIssuerSigningKey = true,
+                    ValidIssuer = jwtSettings.Issuer,
+                    ValidAudience = jwtSettings.Audience,
+                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.SecretKey)),
+                    ClockSkew = TimeSpan.Zero,
+                };
+            });
 
         return builder;
     }
