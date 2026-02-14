@@ -15,7 +15,6 @@
     <Folder Include="Constants\" />
     <Folder Include="Extensions\" />
     <Folder Include="Handlers\" />
-    <Folder Include="Requirements\" />
   </ItemGroup>
 
   <ItemGroup>

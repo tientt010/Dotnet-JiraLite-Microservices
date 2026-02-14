@@ -10,42 +10,24 @@ public static class ProjectsApi
     {
         var projects = group.MapGroup("/projects").WithTags("Projects");
 
-        projects.MapGet("/", GetAllProjectsAsync);
+        projects.MapGet("/", GetAllProjectsAsync)
+            .RequireAuthorization(PolicyNames.RequireAdmin);
         projects.MapGet("/{projectId:guid}", GetProjectByIdAsync)
-            .RequireAuthorization(PolicyNames.ProjectMember);
-        projects.MapPost("/", CreateProjectAsync);
-        projects.MapPut("{projectId:guid}", UpdateProjectAsync);
-        projects.MapDelete("{projectId:guid}", DeleteProjectAsync);
+            .RequireAuthorization(PolicyNames.AdminOrProjectMember);
+        projects.MapPost("/", CreateProjectAsync)
+            .RequireAuthorization(PolicyNames.RequireAdmin);
 
-        projects.MapGet("/{projectId:guid}/members", GetProjectMembersAsync);
-        projects.MapPost("/{projectId:guid}/members", AddProjectMemberAsync);
-        projects.MapDelete("/{projectId:guid}/members/{memberId:guid}", DeleteProjectMemberAsync);
+        projects.MapPut("{projectId:guid}", UpdateProjectAsync)
+            .RequireAuthorization(PolicyNames.AdminOrProjectManager);
+        projects.MapDelete("{projectId:guid}", DeleteProjectAsync)
+            .RequireAuthorization(PolicyNames.RequireAdmin);
 
-        projects.MapGet("/my-projects", GetMyProjectsAsync);
+
+        projects.MapGet("/my-projects", FetchUserProjectsAsync);
         return projects;
     }
 
-    private static async Task GetMyProjectsAsync(HttpContext context)
-    {
-        throw new NotImplementedException();
-    }
-
-    private static async Task GetProjectTasksAsync(HttpContext context)
-    {
-        throw new NotImplementedException();
-    }
-
-    private static async Task DeleteProjectMemberAsync(HttpContext context)
-    {
-        throw new NotImplementedException();
-    }
-
-    private static async Task AddProjectMemberAsync(HttpContext context)
-    {
-        throw new NotImplementedException();
-    }
-
-    private static async Task GetProjectMembersAsync(HttpContext context)
+    private static async Task FetchUserProjectsAsync(HttpContext context)
     {
         throw new NotImplementedException();
     }

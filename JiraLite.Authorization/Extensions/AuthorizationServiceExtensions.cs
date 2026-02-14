@@ -29,6 +29,21 @@ public static class AuthorizationServiceExtensions
             {
                 policy.Requirements.Add(new ProjectManagerRequirement());
             });
+
+            options.AddPolicy(PolicyNames.AdminOrProjectMember, policy =>
+            {
+                policy.Requirements.Add(new AdminOrProjectMemberRequirement());
+            });
+
+            options.AddPolicy(PolicyNames.AdminOrProjectManager, policy =>
+            {
+                policy.Requirements.Add(new AdminOrProjectManagerRequirement());
+            });
+
+            options.AddPolicy(PolicyNames.ProjectManagerOrAssignee, policy =>
+            {
+                policy.Requirements.Add(new ProjectManagerOrAssigneeRequirement());
+            });
         });
 
         builder.Services.AddScoped<IAuthorizationHandler, ProjectAuthorizationHandler>();

@@ -9,7 +9,6 @@
   <ItemGroup>
     <Folder Include="Constants\" />
     <Folder Include="Dtos\Issues\" />
-    <Folder Include="Dtos\Projects\" />
     <Folder Include="Enums\" />
   </ItemGroup>
 

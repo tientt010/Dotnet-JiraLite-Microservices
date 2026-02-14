@@ -10,8 +10,8 @@ public class Project
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public bool IsActive { get; set; } = true;
 
-    public ICollection<ProjectMember> Members { get; set; } = [];
-    public ICollection<Issue> Issues { get; set; } = [];
+    public IEnumerable<ProjectMember> Members { get; set; } = [];
+    public IEnumerable<Issue> Issues { get; set; } = [];
 
 }
 

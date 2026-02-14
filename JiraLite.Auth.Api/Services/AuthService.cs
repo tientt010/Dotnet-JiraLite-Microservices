@@ -106,13 +106,13 @@ public class AuthService(
         }
 
         return Result.Success(new UserInfoDto
-        (
-            user.Id,
-            user.FullName,
-            user.Email,
-            user.Role.ToString(),
-            user.IsActive
-        ));
+        {
+            Id = user.Id,
+            FullName = user.FullName,
+            Email = user.Email,
+            Role = user.Role.ToString(),
+            IsActive = user.IsActive
+        });
     }
 
     public string GenerateRefreshToken()

@@ -12,61 +12,73 @@ namespace JiraLite.Authorization.Handlers;
 
 public class ProjectAuthorizationHandler(
     JiraLiteDbContext dbContext,
-    IHttpContextAccessor httpContextAccessor,
-    ILogger<ProjectAuthorizationHandler> logger) : IAuthorizationHandler
+    IHttpContextAccessor httpContextAccessor) : IAuthorizationHandler
 {
     private const string ProjectIdRouteKey = "projectId";
     public async Task HandleAsync(AuthorizationHandlerContext context)
     {
+        // Lấy tất cả requirements liên quan
         var pendingRequirements = context.PendingRequirements
-            .Where(r => r is ProjectMemberRequirement || r is ProjectManagerRequirement)
+            .Where(r => r is ProjectMemberRequirement
+                     || r is ProjectManagerRequirement
+                     || r is AdminOrProjectMemberRequirement
+                     || r is AdminOrProjectManagerRequirement)
             .ToList();
 
-        if (pendingRequirements.Count == 0)
+        if (pendingRequirements.Count == 0) return;
+
+        // Kiểm tra Admin
+        var roleClaim = context.User.FindFirstValue(ClaimTypes.Role);
+        var isAdmin = roleClaim == "Admin";
+
+        if (isAdmin)
         {
-            return;
+            foreach (var req in pendingRequirements)
+            {
+                if (req is AdminOrProjectMemberRequirement
+                 || req is AdminOrProjectManagerRequirement)
+                {
+                    context.Succeed(req);
+                }
+            }
         }
 
+        var remainingRequirements = context.PendingRequirements
+            .Where(r => r is ProjectMemberRequirement
+                     || r is ProjectManagerRequirement
+                     || r is AdminOrProjectMemberRequirement
+                     || r is AdminOrProjectManagerRequirement)
+            .ToList();
+
+        if (remainingRequirements.Count == 0) return;
+
+        // Lấy userId, projectId
         var userIdClaim = context.User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (!Guid.TryParse(userIdClaim, out var userId))
-        {
-            logger.LogWarning("Invalid or missing user ID claim.");
-            return;
-        }
+        if (!Guid.TryParse(userIdClaim, out var userId)) return;
+        if (!TryGetProjectIdFromRoute(out var projectId)) return;
 
-        if (!TryGetProjectIdFromRoute(out var projectId))
-        {
-            logger.LogWarning("Project ID not found in route.");
-            return;
-        }
-
+        // Query DB
         var membership = await dbContext.ProjectMembers
             .AsNoTracking()
-            .Where(pm => pm.ProjectId == projectId && pm.UserId == userId && pm.IsActive)
+            .Where(pm => pm.ProjectId == projectId && pm.UserId == userId)
             .Select(pm => new { pm.Role })
             .FirstOrDefaultAsync();
 
-        if (membership == null)
-        {
-            logger.LogInformation("User {UserId} is not a member of project {ProjectId}.", userId, projectId);
-            return;
-        }
+        if (membership == null) return;
 
-
-        foreach (var requirement in pendingRequirements)
+        // Xử lý từng requirement còn lại
+        foreach (var req in remainingRequirements)
         {
-            var isAuthorized = requirement switch
+            var isAuthorized = req switch
             {
                 ProjectMemberRequirement => true,
-                ProjectManagerRequirement => membership?.Role == ProjectRole.Manager,
+                AdminOrProjectMemberRequirement => true,
+                ProjectManagerRequirement => membership.Role == ProjectRole.Manager,
+                AdminOrProjectManagerRequirement => membership.Role == ProjectRole.Manager,
                 _ => false
             };
 
-
-            if (isAuthorized)
-            {
-                context.Succeed(requirement);
-            }
+            if (isAuthorized) context.Succeed(req);
         }
     }
     private bool TryGetProjectIdFromRoute(out Guid projectId)

@@ -19,6 +19,7 @@
 
   <ItemGroup>
     <Folder Include="Bootstraping\" />
+    <Folder Include="Services\" />
   </ItemGroup>
 
   <ItemGroup>

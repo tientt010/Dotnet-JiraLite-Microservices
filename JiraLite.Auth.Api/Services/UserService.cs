@@ -24,13 +24,13 @@ public class UserService(AuthDbContext dbContext) : IUserService
                 .Skip((pagination.PageIndex - 1) * pagination.PageSize)
                 .Take(pagination.PageSize)
                 .Select(u => new UserInfoDto
-                (
-                    u.Id,
-                    u.FullName,
-                    u.Email,
-                    u.Role.ToString(),
-                    u.IsActive
-                ))
+                {
+                    Id = u.Id,
+                    FullName = u.FullName,
+                    Email = u.Email,
+                    Role = u.Role.ToString(),
+                    IsActive = u.IsActive
+                })
             .ToListAsync(cancellationToken));
         return Result.Success(response);
     }
@@ -41,13 +41,13 @@ public class UserService(AuthDbContext dbContext) : IUserService
             .AsNoTracking()
             .Where(u => u.Email == email)
             .Select(u => new UserInfoDto
-            (
-                u.Id,
-                u.FullName,
-                u.Email,
-                u.Role.ToString(),
-                u.IsActive
-            ))
+            {
+                Id = u.Id,
+                FullName = u.FullName,
+                Email = u.Email,
+                Role = u.Role.ToString(),
+                IsActive = u.IsActive
+            })
             .FirstOrDefaultAsync(cancellationToken);
         if (userDto is null)
         {
@@ -62,13 +62,13 @@ public class UserService(AuthDbContext dbContext) : IUserService
             .AsNoTracking()
             .Where(u => u.Id == userId)
             .Select(u => new UserInfoDto
-            (
-                u.Id,
-                u.FullName,
-                u.Email,
-                u.Role.ToString(),
-                u.IsActive
-            ))
+            {
+                Id = u.Id,
+                FullName = u.FullName,
+                Email = u.Email,
+                Role = u.Role.ToString(),
+                IsActive = u.IsActive
+            })
             .FirstOrDefaultAsync(cancellationToken);
         if (userDto is null)
         {

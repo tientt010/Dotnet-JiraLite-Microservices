@@ -11,6 +11,7 @@ public static class JiraLiteApi
         v1.MapProjectsApi();
         v1.MapIssuesApi();
         v1.MapProjectIssuesApi();
+        v1.MapProjectMembersApi();
 
         return builder;
     }

@@ -53,18 +53,24 @@ public static class JiraLiteAuthApis
             return TypedResults.BadRequest(result.Error);
         }
 
-        var userInfoDto = new UserInfoDto(
-            userId,
-            principal.FindFirstValue(ClaimTypes.Name)!,
-            principal.FindFirstValue(ClaimTypes.Email)!,
-            principal.FindFirstValue(ClaimTypes.Role)!,
-            principal.FindFirstValue("IsActive") == "True"
-        );
-
+        var userInfoDto = new UserInfoDto
+        {
+            Id = userId,
+            FullName = principal.FindFirstValue(ClaimTypes.Name)!,
+            Email = principal.FindFirstValue(ClaimTypes.Email)!,
+            Role = principal.FindFirstValue(ClaimTypes.Role)!,
+            IsActive = principal.FindFirstValue("IsActive") == "True"
+        };
         var newAccessToken = jwtService.GenerateAccessToken(userInfoDto);
         var newRefreshToken = result.Value!;
 
-        return TypedResults.Ok(new RefreshTokenResponse(newAccessToken, newRefreshToken, ExpiresIn: 15 * 60));
+        return TypedResults.Ok(
+            new RefreshTokenResponse
+            {
+                AccessToken = newAccessToken,
+                RefreshToken = newRefreshToken,
+                ExpiresIn = 15 * 60
+            });
     }
 
     private static async Task<Results<Ok<LoginResponse>, BadRequest<Error>>> HandleLoginAsync(
@@ -105,12 +111,13 @@ public static class JiraLiteAuthApis
 
         var refreshToken = await authService.CreateRefreshTokenAsync(userInfoDto.Id, cancellationToken);
 
-        var response = new LoginResponse(
-            jwtService.GenerateAccessToken(userInfoDto),
-            refreshToken,
-            settings.AccessTokenExpiryInMinutes * 60,
-            userInfoDto
-        );
+        var response = new LoginResponse
+        {
+            AccessToken = jwtService.GenerateAccessToken(userInfoDto),
+            RefreshToken = refreshToken,
+            ExpiresIn = settings.AccessTokenExpiryInMinutes * 60,
+            UserInfo = userInfoDto
+        };
 
         return TypedResults.Ok(response);
 
