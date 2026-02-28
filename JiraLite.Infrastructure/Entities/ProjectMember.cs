@@ -1,4 +1,5 @@
 using System;
+using JiraLite.Share.Enums;
 
 namespace JiraLite.Infrastructure.Entities;
 
@@ -16,10 +17,4 @@ public class ProjectMember
 
     public ICollection<Issue> AssignedIssues { get; set; } = [];
     public Project Project { get; set; } = default!;
-}
-
-public enum ProjectRole
-{
-    Member = 0,
-    Manager = 1
 }

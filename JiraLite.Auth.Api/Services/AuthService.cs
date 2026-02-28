@@ -31,12 +31,12 @@ public class AuthService(
 
         if (existingToken is null || existingToken.RevokedAt is not null)
         {
-            return Result.Failure<string>(AuthErrors.InvalidRefreshToken);
+            return Result.Failure<string>(UserErrors.InvalidRefreshToken);
         }
 
         if (existingToken.ExpiresAt < DateTime.UtcNow)
         {
-            return Result.Failure<string>(AuthErrors.ExpiredRefreshToken);
+            return Result.Failure<string>(UserErrors.ExpiredRefreshToken);
         }
 
         existingToken.RevokedAt = DateTime.UtcNow;
@@ -85,18 +85,18 @@ public class AuthService(
 
         if (user is null)
         {
-            return Result.Failure<UserInfoDto>(AuthErrors.UserNotFound);
+            return Result.Failure<UserInfoDto>(UserErrors.UserNotFound);
         }
 
         if (!user.IsActive)
         {
-            return Result.Failure<UserInfoDto>(AuthErrors.UserInactive);
+            return Result.Failure<UserInfoDto>(UserErrors.UserInactive);
         }
 
         var verifyResult = _passwordHasher.VerifyHashedPassword(user, user.PasswordHash, password);
         if (verifyResult == PasswordVerificationResult.Failed)
         {
-            return Result.Failure<UserInfoDto>(AuthErrors.InvalidPassword);
+            return Result.Failure<UserInfoDto>(UserErrors.InvalidPassword);
         }
 
         if (verifyResult == PasswordVerificationResult.SuccessRehashNeeded)

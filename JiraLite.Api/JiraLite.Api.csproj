@@ -23,6 +23,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\JiraLite.Application\JiraLite.Application.csproj" />
     <ProjectReference Include="..\JiraLite.Authorization\JiraLite.Authorization.csproj" />
     <ProjectReference Include="..\JiraLite.Infrastructure\JiraLite.Infrastructure.csproj" />
     <ProjectReference Include="..\JiraLite.Share\JiraLite.Share.csproj" />

@@ -1,5 +1,11 @@
-using System;
+
+using JiraLite.Application.Interfaces;
 using JiraLite.Authorization.Constants;
+using JiraLite.Share.Common;
+using JiraLite.Share.Dtos.Issues;
+using JiraLite.Share.Enums;
+using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Mvc;
 
 namespace JiraLite.Api.Apis;
 
@@ -9,63 +15,44 @@ public static class ProjectIssuesApi
     {
         var issues = group.MapGroup("/projects/{projectId:guid}/issues").WithTags("Project Issues");
 
-        issues.MapGet("/my-issues", GetMyIssuesAsync);
-        issues.MapGet("/{IssueId:guid}", GetIssueByIdAsync)
+        issues.MapGet("/", GetProjectIssuesAsync)
             .RequireAuthorization(PolicyNames.AdminOrProjectMember);
 
-        issues.MapGet("/", GetAllIssuesAsync)
-            .RequireAuthorization(PolicyNames.RequireAdmin);
         issues.MapPost("/", CreateIssueAsync)
-            .RequireAuthorization(PolicyNames.AdminOrProjectManager);
-        issues.MapPut("/{IssueId:guid}", UpdateIssueAsync)
-            .RequireAuthorization(PolicyNames.ProjectManagerOrAssignee);
-        issues.MapDelete("/{IssueId:guid}", DeleteIssueAsync)
             .RequireAuthorization(PolicyNames.ProjectManager);
-        issues.MapGet("/{IssueId:guid}/status", GetIssueStatusAsync)
-            .RequireAuthorization(PolicyNames.AdminOrProjectMember);
-        issues.MapPost("/{IssueId:guid}/assignee", AssignIssueAsync)
-            .RequireAuthorization(PolicyNames.ProjectManagerOrAssignee);
 
         return issues;
     }
-
-    private static async Task AssignIssueAsync(HttpContext context)
+    private static async Task<Results<Ok<PaginationResponse<IssueInfoDto>>, BadRequest<Error>>> GetProjectIssuesAsync(
+        [FromRoute] Guid projectId,
+        [FromQuery] IssueStatus? status,
+        [FromQuery] Guid? assigneeId,
+        [FromQuery] string? search,
+        [AsParameters] PaginationRequest pagination,
+        [FromServices] IProjectIssuesServices projectIssuesService,
+        CancellationToken cancellationToken = default)
     {
-        throw new NotImplementedException();
+        var result = await projectIssuesService.GetProjectIssuesAsync(projectId, status, assigneeId, search, pagination, cancellationToken);
+        if (result.IsFailure)
+        {
+            return TypedResults.BadRequest(result.Error);
+        }
+        return TypedResults.Ok(result.Value);
     }
 
-    private static async Task GetIssueStatusAsync(HttpContext context)
+    private static async Task<Results<Created<CreateIssueResponse>, NotFound<Error>, BadRequest<Error>>> CreateIssueAsync(
+        [FromRoute] Guid projectId,
+        [FromBody] CreateIssueRequest request,
+        [FromServices] IProjectIssuesServices projectIssuesService,
+        CancellationToken cancellationToken = default)
     {
-        throw new NotImplementedException();
-    }
-
-    private static async Task GetMyIssuesAsync(HttpContext context)
-    {
-        throw new NotImplementedException();
-    }
-
-    private static async Task DeleteIssueAsync(HttpContext context)
-    {
-        throw new NotImplementedException();
-    }
-
-    private static async Task UpdateIssueAsync(HttpContext context)
-    {
-        throw new NotImplementedException();
-    }
-
-    private static async Task CreateIssueAsync(HttpContext context)
-    {
-        throw new NotImplementedException();
-    }
-
-    private static async Task GetIssueByIdAsync(HttpContext context)
-    {
-        throw new NotImplementedException();
-    }
-
-    private static async Task GetAllIssuesAsync(HttpContext context)
-    {
-        throw new NotImplementedException();
+        var result = await projectIssuesService.CreateIssueAsync(projectId, request, cancellationToken);
+        if (result.IsFailure)
+        {
+            if (result.Error == ProjectErrors.ProjectNotFound)
+                return TypedResults.NotFound(result.Error);
+            return TypedResults.BadRequest(result.Error);
+        }
+        return TypedResults.Created($"/api/v1/issues/{result.Value!.Id}", result.Value);
     }
 }

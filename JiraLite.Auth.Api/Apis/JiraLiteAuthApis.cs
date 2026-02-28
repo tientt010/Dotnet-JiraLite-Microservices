@@ -32,18 +32,18 @@ public static class JiraLiteAuthApis
     {
         if (string.IsNullOrWhiteSpace(refreshTokenRequest.RefreshToken))
         {
-            return TypedResults.BadRequest(AuthErrors.EmptyRefreshToken);
+            return TypedResults.BadRequest(UserErrors.EmptyRefreshToken);
         }
 
         if (string.IsNullOrWhiteSpace(refreshTokenRequest.AccessToken))
         {
-            return TypedResults.BadRequest(AuthErrors.EmptyAccessToken);
+            return TypedResults.BadRequest(UserErrors.EmptyAccessToken);
         }
         var principal = jwtService.GetPrincipalFromExpiredToken(refreshTokenRequest.AccessToken);
 
         if (principal is null)
         {
-            return TypedResults.BadRequest(AuthErrors.InvalidAccessToken);
+            return TypedResults.BadRequest(UserErrors.InvalidAccessToken);
         }
         var userId = Guid.Parse(principal.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
@@ -83,7 +83,7 @@ public static class JiraLiteAuthApis
         if (string.IsNullOrWhiteSpace(loginRequest.Email) ||
         string.IsNullOrWhiteSpace(loginRequest.Password))
         {
-            return TypedResults.BadRequest(AuthErrors.EmptyCredentials);
+            return TypedResults.BadRequest(UserErrors.EmptyCredentials);
         }
 
         var emailNormalized = loginRequest.Email.Trim().ToLowerInvariant();
@@ -92,13 +92,13 @@ public static class JiraLiteAuthApis
         if (result.IsFailure)
         {
             var error = result.Error;
-            if (error == AuthErrors.UserNotFound || error == AuthErrors.InvalidPassword)
+            if (error == UserErrors.UserNotFound || error == UserErrors.InvalidPassword)
             {
-                return TypedResults.BadRequest(AuthErrors.InvalidEmailOrPassword);
+                return TypedResults.BadRequest(UserErrors.InvalidEmailOrPassword);
             }
-            else if (error == AuthErrors.UserInactive)
+            else if (error == UserErrors.UserInactive)
             {
-                return TypedResults.BadRequest(AuthErrors.UserInactive);
+                return TypedResults.BadRequest(UserErrors.UserInactive);
             }
             else
             {

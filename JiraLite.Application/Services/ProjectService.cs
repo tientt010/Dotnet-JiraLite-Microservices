@@ -1,30 +1,31 @@
 using System;
+using JiraLite.Application.Interfaces;
 using JiraLite.Infrastructure.Data;
 using JiraLite.Infrastructure.Entities;
 using JiraLite.Share.Common;
+using JiraLite.Share.Dtos.Issues;
 using JiraLite.Share.Dtos.Projects;
+using JiraLite.Share.Enums;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
-namespace JiraLite.Api.Services;
+namespace JiraLite.Application.Services;
 
-public class ProjectService(JiraLiteDbContext dbContext, ILogger<ProjectService> logger) : IProjectService
+public class ProjectService(
+    JiraLiteDbContext dbContext,
+    ILogger<ProjectService> logger) : IProjectService
 {
     private readonly JiraLiteDbContext _dbContext = dbContext;
     private readonly ILogger<ProjectService> _logger = logger;
 
     public async Task<Result<CreateProjectResponse>> CreateProjectAsync(CreateProjectRequest request, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(request.Name))
-        {
-            return Result.Failure<CreateProjectResponse>(ProjectErrors.EmptyProjectName);
-        }
         var project = new Project
         {
             Id = Guid.NewGuid(),
             Name = request.Name,
             Description = request.Description,
-            IsActive = request.IsActive,
-            CreatedAt = DateTime.UtcNow
+            IsActive = request.IsActive
         };
 
         _dbContext.Projects.Add(project);
@@ -59,27 +60,66 @@ public class ProjectService(JiraLiteDbContext dbContext, ILogger<ProjectService>
         return Result.Success();
     }
 
-    public async Task<Result<PaginationResponse<ProjectInfoDto>>> FetchUserProjectsAsync(Guid userId, PaginationRequest pagination, CancellationToken cancellationToken = default)
+    public async Task<Result<PaginationResponse<ProjectSummaryDto>>> GetProjectsAsync(
+        Guid userId, bool isAdmin, string? memberFilter, string? search,
+        PaginationRequest pagination, CancellationToken cancellationToken = default)
     {
-        var projectMembers = _dbContext.ProjectMembers.AsNoTracking().Where(pm => pm.UserId == userId && pm.IsActive);
-        var response = new PaginationResponse<ProjectInfoDto>(
-            pagination.PageIndex,
-            pagination.PageSize,
-            await projectMembers.LongCountAsync(cancellationToken),
-            await projectMembers
-                .OrderByDescending(pm => pm.JoinedAt)
-                .ThenBy(pm => pm.Id)
-                .Skip((pagination.PageIndex - 1) * pagination.PageSize)
-                .Take(pagination.PageSize)
-            .Select(pm => new ProjectInfoDto
+        var shouldScopeToUser = !isAdmin || string.Equals(memberFilter, "me", StringComparison.OrdinalIgnoreCase);
+
+        IQueryable<Project> query;
+
+        if (shouldScopeToUser)
+        {
+            query = _dbContext.ProjectMembers
+                .AsNoTracking()
+                .Where(pm => pm.UserId == userId && pm.IsActive)
+                .Select(pm => pm.Project)
+                .Where(p => p.IsActive);
+        }
+        else
+        {
+            query = _dbContext.Projects.AsNoTracking().Where(p => p.IsActive);
+        }
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var searchPattern = $"%{search.Trim()}%";
+
+            query = query.Where(p =>
+                EF.Functions.ILike(JiraLiteDbContext.ImmutableUnaccent(p.Name), JiraLiteDbContext.ImmutableUnaccent(searchPattern)) ||
+                EF.Functions.ILike(JiraLiteDbContext.ImmutableUnaccent(p.Description ?? string.Empty), JiraLiteDbContext.ImmutableUnaccent(searchPattern)));
+        }
+
+        var totalCount = await query.LongCountAsync(cancellationToken);
+        var items = await query
+            .OrderByDescending(p => p.CreatedAt)
+            .ThenBy(p => p.Id)
+            .AsSplitQuery()
+            .Skip((pagination.PageIndex - 1) * pagination.PageSize)
+            .Take(pagination.PageSize)
+            .Select(p => new ProjectSummaryDto
             {
-                Id = pm.Project.Id,
-                Name = pm.Project.Name,
-                Description = pm.Project.Description,
-                CreatedAt = pm.Project.CreatedAt,
-                IsActive = pm.Project.IsActive
+                Id = p.Id,
+                Name = p.Name,
+                Description = p.Description,
+                CreatedAt = p.CreatedAt,
+                MemberCount = p.Members.Count(m => m.IsActive),
+                ManagerId = p.Members
+                    .Where(m => m.Role == ProjectRole.Manager && m.IsActive)
+                    .Select(m => m.UserId)
+                    .FirstOrDefault(),
+                ManagerName = p.Members
+                    .Where(m => m.Role == ProjectRole.Manager && m.IsActive)
+                    .Select(m => m.FullName)
+                    .FirstOrDefault() ?? "Unknown",
+                IssueInProgressCount = p.Issues.Count(i => i.Status == IssueStatus.InProgress),
+                IssueTodoCount = p.Issues.Count(i => i.Status == IssueStatus.ToDo),
+                IssueDoneCount = p.Issues.Count(i => i.Status == IssueStatus.Done)
             })
-            .ToListAsync(cancellationToken));
+            .ToListAsync(cancellationToken);
+
+        var response = new PaginationResponse<ProjectSummaryDto>(
+            pagination.PageIndex, pagination.PageSize, totalCount, items);
 
         return Result.Success(response);
     }
@@ -110,7 +150,9 @@ public class ProjectService(JiraLiteDbContext dbContext, ILogger<ProjectService>
                     Description = i.Description,
                     Status = i.Status.ToString(),
                     Priority = i.Priority.ToString(),
-                    AssigneeId = i.AssignedToId
+                    AssigneeId = i.AssignedToId,
+                    AssigneeTo = i.AssignedTo != null ? i.AssignedTo.FullName : null,
+                    CreatedAt = i.CreatedAt
                 }).ToList()
             })
             .FirstOrDefaultAsync(cancellationToken);
@@ -123,50 +165,16 @@ public class ProjectService(JiraLiteDbContext dbContext, ILogger<ProjectService>
         return Result.Success(response);
     }
 
-    public async Task<Result<PaginationResponse<ProjectSummaryDto>>> GetProjectsAsync(PaginationRequest pagination, CancellationToken cancellationToken = default)
-    {
-        var projects = _dbContext.Projects.AsNoTracking().Where(p => p.IsActive);
-        var totalCount = await projects.LongCountAsync(cancellationToken);
-        var response = new PaginationResponse<ProjectSummaryDto>(
-            pagination.PageIndex,
-            pagination.PageSize,
-            totalCount,
-            await projects.OrderByDescending(p => p.CreatedAt)
-                .ThenBy(p => p.Id)
-                .AsSplitQuery()
-                .Skip((pagination.PageIndex - 1) * pagination.PageSize)
-                .Take(pagination.PageSize)
-                .Select(p => new ProjectSummaryDto
-                {
-                    Id = p.Id,
-                    Name = p.Name,
-                    Description = p.Description,
-                    CreatedAt = p.CreatedAt,
-                    MemberCount = p.Members.Count(m => m.IsActive),
-                    ManagerId = p.Members
-                        .Where(m => m.Role == ProjectRole.Manager && m.IsActive)
-                        .Select(m => m.UserId)
-                        .FirstOrDefault(),
-
-                    ManagerName = p.Members
-                        .Where(m => m.Role == ProjectRole.Manager && m.IsActive)
-                        .Select(m => m.FullName)
-                        .FirstOrDefault() ?? "Unknown",
-                    IssueInProgressCount = p.Issues.Count(i => i.Status == IssueStatus.InProgress),
-                    IssueTodoCount = p.Issues.Count(i => i.Status == IssueStatus.ToDo),
-                    IssueDoneCount = p.Issues.Count(i => i.Status == IssueStatus.Done)
-                }).ToListAsync(cancellationToken));
-
-        return Result.Success(response);
-    }
-
-    public async Task<Result<UpdateProjectResponse>> UpdateProjectAsync(UpdateProjectRequest request, CancellationToken cancellationToken = default)
+    public async Task<Result<UpdateProjectResponse>> UpdateProjectAsync(
+        Guid projectId,
+        UpdateProjectRequest request,
+        CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(request.Name))
         {
             return Result.Failure<UpdateProjectResponse>(ProjectErrors.EmptyProjectName);
         }
-        var project = await _dbContext.Projects.FindAsync([request.Id], cancellationToken);
+        var project = await _dbContext.Projects.FindAsync([projectId], cancellationToken);
         if (project == null)
         {
             return Result.Failure<UpdateProjectResponse>(ProjectErrors.ProjectNotFound);
@@ -177,7 +185,7 @@ public class ProjectService(JiraLiteDbContext dbContext, ILogger<ProjectService>
         project.IsActive = request.IsActive;
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        _logger.LogInformation("Updated project with ID {ProjectId}", request.Id);
+        _logger.LogInformation("Updated project with ID {ProjectId}", projectId);
 
         var response = new UpdateProjectResponse
         {

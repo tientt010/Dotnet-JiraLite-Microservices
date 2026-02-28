@@ -15,10 +15,12 @@
     <Folder Include="Constants\" />
     <Folder Include="Extensions\" />
     <Folder Include="Handlers\" />
+    <Folder Include="Services\" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\JiraLite.Infrastructure\JiraLite.Infrastructure.csproj" />
+    <ProjectReference Include="..\JiraLite.Share\JiraLite.Share.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,4 +1,5 @@
 using System;
+using JiraLite.Share.Enums;
 
 namespace JiraLite.Infrastructure.Entities;
 
@@ -16,14 +17,4 @@ public class IssueChangeLog
 
     public Issue Issue { get; set; } = null!;
     public ProjectMember ChangedBy { get; set; } = null!;
-}
-
-public enum IssueChangeType
-{
-    Created = 0,
-    StatusChanged = 1,
-    AssigneeChanged = 2,
-    PriorityChanged = 3,
-    TitleChanged = 4,
-    DescriptionChanged = 5
 }

@@ -41,13 +41,16 @@ project.fragment.lock.json
 ## User Secrets
 secrets.json
 
+## Local development settings
+appsettings.Development.json
+
 # =================================
 # IDE / Editor specific
 # =================================
 
 ## VSCode
 .vscode/*
-.github/instructions/
+.github/*
 
 # Temporary files
 *.tmp

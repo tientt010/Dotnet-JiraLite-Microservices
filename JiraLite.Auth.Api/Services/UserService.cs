@@ -51,7 +51,7 @@ public class UserService(AuthDbContext dbContext) : IUserService
             .FirstOrDefaultAsync(cancellationToken);
         if (userDto is null)
         {
-            return Result.Failure<UserInfoDto>(AuthErrors.UserNotFound);
+            return Result.Failure<UserInfoDto>(UserErrors.UserNotFound);
         }
         return Result.Success(userDto);
     }
@@ -72,7 +72,7 @@ public class UserService(AuthDbContext dbContext) : IUserService
             .FirstOrDefaultAsync(cancellationToken);
         if (userDto is null)
         {
-            return Result.Failure<UserInfoDto>(AuthErrors.UserNotFound);
+            return Result.Failure<UserInfoDto>(UserErrors.UserNotFound);
         }
         return Result.Success(userDto);
     }

@@ -1,8 +1,10 @@
 using System;
 using System.Security.Claims;
 using JiraLite.Authorization.Requirements;
+using JiraLite.Authorization.Services;
 using JiraLite.Infrastructure.Data;
 using JiraLite.Infrastructure.Entities;
+using JiraLite.Share.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
@@ -12,7 +14,7 @@ namespace JiraLite.Authorization.Handlers;
 
 public class ProjectAuthorizationHandler(
     JiraLiteDbContext dbContext,
-    IHttpContextAccessor httpContextAccessor) : IAuthorizationHandler
+    IIdentityService identityService) : IAuthorizationHandler
 {
     private const string ProjectIdRouteKey = "projectId";
     public async Task HandleAsync(AuthorizationHandlerContext context)
@@ -28,8 +30,7 @@ public class ProjectAuthorizationHandler(
         if (pendingRequirements.Count == 0) return;
 
         // Kiểm tra Admin
-        var roleClaim = context.User.FindFirstValue(ClaimTypes.Role);
-        var isAdmin = roleClaim == "Admin";
+        var isAdmin = identityService.IsAdmin;
 
         if (isAdmin)
         {
@@ -53,9 +54,8 @@ public class ProjectAuthorizationHandler(
         if (remainingRequirements.Count == 0) return;
 
         // Lấy userId, projectId
-        var userIdClaim = context.User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (!Guid.TryParse(userIdClaim, out var userId)) return;
-        if (!TryGetProjectIdFromRoute(out var projectId)) return;
+        if (!identityService.TryGetUserId(out var userId)) return;
+        if (!identityService.TryGetProjectIdFromRoute(out var projectId)) return;
 
         // Query DB
         var membership = await dbContext.ProjectMembers
@@ -80,14 +80,5 @@ public class ProjectAuthorizationHandler(
 
             if (isAuthorized) context.Succeed(req);
         }
-    }
-    private bool TryGetProjectIdFromRoute(out Guid projectId)
-    {
-        projectId = Guid.Empty;
-
-        var routeValue = httpContextAccessor.HttpContext?
-            .Request.RouteValues[ProjectIdRouteKey]?.ToString();
-
-        return Guid.TryParse(routeValue, out projectId);
     }
 }

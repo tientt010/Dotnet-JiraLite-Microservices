@@ -13,9 +13,20 @@ public class JiraLiteDbContext(DbContextOptions<JiraLiteDbContext> options) : Db
     public DbSet<IssueChangeLog> IssueChangeLogs { get; set; } = default!;
 
 
+    /// <summary>
+    /// Maps to immutable_unaccent() PostgreSQL function created in migration.
+    /// Used in LINQ queries to leverage GIN trigram indexes.
+    /// </summary>
+    public static string ImmutableUnaccent(string text) =>
+        throw new NotSupportedException("Only for EF Core query translation.");
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        modelBuilder.HasDbFunction(
+            typeof(JiraLiteDbContext).GetMethod(nameof(ImmutableUnaccent), [typeof(string)])!)
+            .HasName("immutable_unaccent");
 
         // Project
         modelBuilder.Entity<Project>(entity =>
@@ -57,6 +68,9 @@ public class JiraLiteDbContext(DbContextOptions<JiraLiteDbContext> options) : Db
                 .HasForeignKey(i => i.AssignedToId)
                 .OnDelete(DeleteBehavior.SetNull);
 
+            entity.HasIndex(i => i.CreatedAt);
+            entity.HasIndex(i => i.Status);
+            entity.HasIndex(i => i.Priority);
             entity.Property(i => i.Status).HasConversion<string>().HasMaxLength(20);
             entity.Property(i => i.Priority).HasConversion<string>().HasMaxLength(20);
         });
@@ -81,6 +95,21 @@ public class JiraLiteDbContext(DbContextOptions<JiraLiteDbContext> options) : Db
             entity.Property(log => log.NewValue).HasMaxLength(500);
             entity.Property(log => log.Description).HasMaxLength(500);
         });
+    }
+    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        var now = DateTime.UtcNow;
+        foreach (var entry in ChangeTracker.Entries<Project>())
+        {
+            if (entry.State == EntityState.Added) entry.Entity.CreatedAt = now;
+            if (entry.State is EntityState.Added or EntityState.Modified) entry.Entity.UpdatedAt = now;
+        }
+        foreach (var entry in ChangeTracker.Entries<Issue>())
+        {
+            if (entry.State == EntityState.Added) entry.Entity.CreatedAt = now;
+            if (entry.State is EntityState.Added or EntityState.Modified) entry.Entity.UpdatedAt = now;
+        }
+        return await base.SaveChangesAsync(cancellationToken);
     }
 
 }

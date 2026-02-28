@@ -1,5 +1,3 @@
-using System;
-
 namespace JiraLite.Share.Enums;
 
 public enum SystemRole

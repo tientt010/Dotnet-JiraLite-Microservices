@@ -2,6 +2,7 @@ using System;
 using JiraLite.Authorization.Constants;
 using JiraLite.Authorization.Handlers;
 using JiraLite.Authorization.Requirements;
+using JiraLite.Authorization.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -49,6 +50,7 @@ public static class AuthorizationServiceExtensions
         builder.Services.AddScoped<IAuthorizationHandler, ProjectAuthorizationHandler>();
 
         builder.Services.AddHttpContextAccessor();
+        builder.Services.AddScoped<IIdentityService, IdentityService>();
 
         return builder;
     }

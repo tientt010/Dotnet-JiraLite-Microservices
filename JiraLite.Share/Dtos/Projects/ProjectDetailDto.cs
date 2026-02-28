@@ -1,3 +1,5 @@
+using JiraLite.Share.Dtos.Issues;
+
 namespace JiraLite.Share.Dtos.Projects;
 
 public record class ProjectDetailDto

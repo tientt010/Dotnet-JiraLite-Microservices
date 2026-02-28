@@ -1,4 +1,4 @@
-namespace JiraLite.Share.Dtos.Projects;
+namespace JiraLite.Share.Dtos.Issues;
 
 public record class IssueInfoDto
 {
@@ -8,5 +8,6 @@ public record class IssueInfoDto
     public required string Status { get; init; }
     public required string Priority { get; init; }
     public required Guid? AssigneeId { get; init; }
-
+    public required string? AssigneeTo { get; init; }
+    public required DateTime CreatedAt { get; init; }
 }
