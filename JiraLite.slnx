@@ -1,9 +1,29 @@
 <Solution>
-  <Project Path="JiraLite.Api/JiraLite.Api.csproj" />
-  <Project Path="JiraLite.Application/JiraLite.Application.csproj" />
-  <Project Path="JiraLite.Auth.Api/JiraLite.Auth.Api.csproj" />
-  <Project Path="JiraLite.Auth.Infrastructure/JiraLite.Auth.Infrastructure.csproj" />
-  <Project Path="JiraLite.Authorization/JiraLite.Authorization.csproj" />
-  <Project Path="JiraLite.Infrastructure/JiraLite.Infrastructure.csproj" />
-  <Project Path="JiraLite.Share/JiraLite.Share.csproj" />
+  <Folder Name="/src/" />
+  <Folder Name="/src/ApiGateway/">
+    <Project Path="src/ApiGateway/JiraLite.Gateway/JiraLite.Gateway.csproj" />
+  </Folder>
+  <Folder Name="/src/Services/" />
+  <Folder Name="/src/Services/Identity/">
+    <Project Path="src/Services/Identity/Identity.API/Identity.API.csproj" />
+    <Project Path="src/Services/Identity/Identity.Application/Identity.Application.csproj" />
+    <Project Path="src/Services/Identity/Identity.Domain/Identity.Domain.csproj" />
+    <Project Path="src/Services/Identity/Identity.Infrastructure/Identity.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/src/Services/Logging/">
+    <Project Path="src/Services/Logging/Logging.API/Logging.API.csproj" />
+    <Project Path="src/Services/Logging/Logging.Application/Logging.Application.csproj" />
+    <Project Path="src/Services/Logging/Logging.Domain/Logging.Domain.csproj" />
+    <Project Path="src/Services/Logging/Logging.Infrastructure/Logging.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/src/Services/Tracking/">
+    <Project Path="src/Services/Tracking/Tracking.API/Tracking.API.csproj" />
+    <Project Path="src/Services/Tracking/Tracking.Application/Tracking.Application.csproj" />
+    <Project Path="src/Services/Tracking/Tracking.Domain/Tracking.Domain.csproj" />
+    <Project Path="src/Services/Tracking/Tracking.Infrastructure/Tracking.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/src/SharedKernel/">
+    <Project Path="src/SharedKernel/JiraLite.Share.Contracts/JiraLite.Shared.Contracts.csproj" />
+    <Project Path="src/SharedKernel/JiraLite.Shared.Messaging/JiraLite.Shared.Messaging.csproj" />
+  </Folder>
 </Solution>

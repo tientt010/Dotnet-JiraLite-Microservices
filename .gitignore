@@ -50,7 +50,7 @@ appsettings.Development.json
 
 ## VSCode
 .vscode/*
-.github/*
+.github/copilot-instructions.md
 
 # Temporary files
 *.tmp

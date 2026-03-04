@@ -1,50 +1,91 @@
 services:
-    # Auth Service Database
-    auth-db:
+    identity-db:
         image: postgres:16-alpine
-        container_name: jiralite-auth-db
-        restart: always
+        container_name: identity-db
         environment:
-            POSTGRES_USER: ${POSTGRES_USER:-admin}
+            POSTGRES_USER: ${POSTGRES_USER}
             POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-            POSTGRES_DB: JiraLiteAuthDb
+            POSTGRES_DB: JiraLiteIdentityDb
         ports:
             - "5432:5432"
         volumes:
-            - auth_postgres_data:/var/lib/postgresql/data
+            - identity_postgres_data:/var/lib/postgresql/data
         healthcheck:
             test:
                 [
                     "CMD-SHELL",
-                    "pg_isready -U ${POSTGRES_USER:-admin} -d JiraLiteAuthDb",
+                    "pg_isready -U ${POSTGRES_USER} -d JiraLiteIdentityDb",
                 ]
             interval: 10s
             timeout: 5s
             retries: 5
 
-    # Main API Database
-    main-db:
+    tracking-db:
         image: postgres:16-alpine
-        container_name: jiralite-main-db
-        restart: always
+        container_name: tracking-db
         environment:
-            POSTGRES_USER: ${POSTGRES_USER:-admin}
+            POSTGRES_USER: ${POSTGRES_USER}
             POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-            POSTGRES_DB: JiraLiteMainDb
+            POSTGRES_DB: JiraLiteTrackingDb
         ports:
             - "5433:5432"
         volumes:
-            - main_postgres_data:/var/lib/postgresql/data
+            - tracking_postgres_data:/var/lib/postgresql/data
         healthcheck:
             test:
                 [
                     "CMD-SHELL",
-                    "pg_isready -U ${POSTGRES_USER:-admin} -d JiraLiteMainDb",
+                    "pg_isready -U ${POSTGRES_USER} -d JiraLiteTrackingDb",
                 ]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+
+    elasticsearch:
+        image: docker.elastic.co/elasticsearch/elasticsearch:8.13.0
+        container_name: elasticsearch
+        environment:
+            - discovery.type=single-node
+            - ELASTIC_USER=${ELASTIC_USER}
+            - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
+            - xpack.security.enabled=true
+            - xpack.security.http.ssl.enabled=false
+            - xpack.ml.enabled=false
+            - xpack.watcher.enabled=false
+            - ES_JAVA_OPTS=-Xms256m -Xmx256m
+        ports:
+            - "9200:9200"
+        volumes:
+            - elasticsearch_data:/usr/share/elasticsearch/data
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    'curl -s -u ${ELASTIC_USER}:${ELASTIC_PASSWORD} http://localhost:9200/_cluster/health | grep -qE ''"status":"(green|yellow)"''',
+                ]
+            interval: 15s
+            timeout: 10s
+            retries: 10
+
+    rabbitmq:
+        image: rabbitmq:3-management-alpine
+        container_name: rabbitmq
+        environment:
+            RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+            RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+        ports:
+            - "5672:5672"
+            - "15672:15672"
+        volumes:
+            - rabbitmq_data:/var/lib/rabbitmq
+        healthcheck:
+            test: ["CMD", "rabbitmq-diagnostics", "ping"]
             interval: 10s
             timeout: 5s
             retries: 5
 
 volumes:
-    auth_postgres_data:
-    main_postgres_data:
+    identity_postgres_data:
+    tracking_postgres_data:
+    elasticsearch_data:
+    rabbitmq_data:
