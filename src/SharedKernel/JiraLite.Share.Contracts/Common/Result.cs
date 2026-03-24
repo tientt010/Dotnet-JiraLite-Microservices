@@ -1,36 +1,42 @@
 using JiraLite.Share.Common;
 
+// 2. Class Result gốc (Dành cho các action KHÔNG trả về data - tương đương void/Task)
 public class Result
 {
-    public bool IsSuccess { get; init; }
-    public Error Error { get; init; } = Error.None;
+    public bool IsSuccess { get; }
     public bool IsFailure => !IsSuccess;
+    public Error Error { get; }
+    public Error[]? ValidationErrors { get; }
 
-    protected Result() { }
+    protected Result(bool isSuccess, Error error, Error[]? validationErrors = null)
+    {
+        if (isSuccess && error != Error.None)
+            throw new InvalidOperationException();
+        if (!isSuccess && error == Error.None)
+            throw new InvalidOperationException();
 
-    public static Result Success() => new() { IsSuccess = true };
-    public static Result Failure(Error error) => new() { IsSuccess = false, Error = error };
+        IsSuccess = isSuccess;
+        Error = error;
+        ValidationErrors = validationErrors;
+    }
 
-    public static Result<T> Success<T>(T value) => new(value);
-    public static Result<T> Failure<T>(Error error) => new(error);
+    public static Result Success() => new(true, Error.None);
+    public static Result Failure(Error error) => new(false, error);
+    public static Result ValidationFailure(Error[] errors) => new(false, new Error("ValidationError", "Dữ liệu đầu vào không hợp lệ"), errors);
 }
 
-public class Result<T> : Result
+// 3. Class Result<TValue> kế thừa từ Result (Dành cho các action CÓ trả về data)
+public class Result<TValue> : Result
 {
-    public T? Value { get; init; }
+    public TValue? Value { get; }
 
-    protected internal Result() { }
-
-    protected internal Result(T value)
+    protected Result(bool isSuccess, Error error, TValue? value, Error[]? validationErrors = null)
+        : base(isSuccess, error, validationErrors)
     {
-        IsSuccess = true;
         Value = value;
-        Error = Error.None;
     }
 
-    protected internal Result(Error error)
-    {
-        IsSuccess = false;
-        Error = error;
-    }
+    public static Result<TValue> Success(TValue value) => new(true, Error.None, value);
+    public static new Result<TValue> Failure(Error error) => new(false, error, default);
+    public static new Result<TValue> ValidationFailure(Error[] errors) => new(false, new Error("ValidationError", "Dữ liệu đầu vào không hợp lệ"), default, errors);
 }

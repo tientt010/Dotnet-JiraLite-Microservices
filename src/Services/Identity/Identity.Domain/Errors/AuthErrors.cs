@@ -10,4 +10,5 @@ public static class AuthErrors
     public static readonly Error ExpiredAccessToken = new("Auth.ExpiredAccessToken", "The access token has expired");
     public static readonly Error InvalidRefreshToken = new("Auth.InvalidRefreshToken", "The refresh token is invalid");
     public static readonly Error ExpiredRefreshToken = new("Auth.ExpiredRefreshToken", "The refresh token has expired");
+    public static readonly Error EmailAlreadyInUse = new("Auth.EmailAlreadyInUse", "The provided email is already registered.");
 }

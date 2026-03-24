@@ -223,20 +223,29 @@ JiraLite/
 │   │       ├── Logging.Domain/
 │   │       │   ├── Logging.Domain.csproj
 │   │       │   ├── Entities/
-│   │       │   │   └── AuditLog.cs
-│   │       │   ├── Errors/                           ← Static error definitions
+│   │       │   │   ├── ActivityLog.cs             ← Document root (lưu vào Elasticsearch)
+│   │       │   │   ├── LogActor.cs                ← Snapshot actor (id, name, avatarUrl)
+│   │       │   │   ├── LogTarget.cs               ← Entity bị tác động (type, id, name)
+│   │       │   │   └── LogChange.cs               ← Một thay đổi (field, oldValue, newValue, id)
+│   │       │   ├── Enums/
+│   │       │   │   ├── ActionType.cs              ← CREATE | UPDATE | DELETE | ASSIGN
+│   │       │   │   └── TargetType.cs              ← ISSUE | PROJECT | USER
+│   │       │   ├── Errors/
 │   │       │   │   └── LogErrors.cs
-│   │       │   └── Interfaces/                       ← Repository contracts
-│   │       │       └── IAuditLogRepository.cs
+│   │       │   └── Interfaces/
+│   │       │       └── IActivityLogRepository.cs
 │   │       │
 │   │       ├── Logging.Application/
-│   │       │   ├── Logging.Application.csproj
-│   │       │   ├── ApplicationServiceExtensions.cs   ← Đăng ký MediatR
-│   │       │   ├── Features/                         ← CQRS với MediatR (query handlers)
+│   │       │   ├── Logging.Application.csproj     ← ref: Logging.Domain, Shared.Messaging, Elastic.Clients.Elasticsearch
+│   │       │   ├── ApplicationServiceExtensions.cs   ← Đăng ký MediatR + MassTransit Consumers
+│   │       │   ├── DTOs/                          ← Read side output models
+│   │       │   │   └── ActivityLogDto.cs          ← + LogActorDto, LogTargetDto, LogChangeDto
+│   │       │   ├── Features/                      ← READ SIDE: MediatR Query Handlers (inject ElasticsearchClient trực tiếp)
 │   │       │   │   └── Logs/
-│   │       │   │       ├── GetAuditLogs.cs
-│   │       │   │       └── GetAuditLogsByIssue.cs
-│   │       │   └── Consumers/                        ← RabbitMQ consumers
+│   │       │   │       ├── GetActivityLogs.cs     ← Query + Handler (filter + phân trang)
+│   │       │   │       ├── GetActivityLogsByIssue.cs
+│   │       │   │       └── GetActivityLogsByProject.cs
+│   │       │   └── Consumers/                     ← WRITE SIDE: MassTransit Event Consumers (inject IActivityLogRepository)
 │   │       │       ├── IssueCreatedConsumer.cs
 │   │       │       ├── IssueStatusChangedConsumer.cs
 │   │       │       ├── IssueAssignedConsumer.cs
@@ -244,11 +253,12 @@ JiraLite/
 │   │       │
 │   │       ├── Logging.Infrastructure/
 │   │       │   ├── Logging.Infrastructure.csproj
-│   │       │   ├── InfrastructureServiceExtensions.cs  ← Đăng ký Elasticsearch, Repositories
+│   │       │   ├── InfrastructureServiceExtensions.cs  ← Đăng ký ES client, Repository
 │   │       │   ├── Elasticsearch/
-│   │       │   │   └── ElasticsearchClientFactory.cs
+│   │       │   │   ├── ElasticsearchClientFactory.cs   ← Cấu hình connection
+│   │       │   │   └── IndexMappings.cs                ← Explicit field mapping
 │   │       │   └── Repositories/
-│   │       │       └── AuditLogRepository.cs
+│   │       │       └── ActivityLogRepository.cs
 │   │       │
 │   │       └── Logging.API/
 │   │           ├── Logging.API.csproj             ← Chạy cổng 5003
@@ -257,7 +267,7 @@ JiraLite/
 │   │           │   └── ApiServiceCollectionExtensions.cs  ← OpenAPI, Versioning
 │   │           ├── Apis/
 │   │           │   ├── LoggingApi.cs              ← Đăng ký tất cả route groups
-│   │           │   └── LogsApi.cs
+│   │           │   └── LogsApi.cs                 ← Minimal API read-only endpoints
 │   │           └── appsettings.json
 │   │
 │   └── SharedKernel/
@@ -389,11 +399,11 @@ await publishEndpoint.Publish(new IssueCreatedEvent
 }, cancellationToken);
 
 // Logging consume event
-public class IssueCreatedConsumer(IAuditLogRepository repo) : IConsumer<IssueCreatedEvent>
+public class IssueCreatedConsumer(IActivityLogRepository repo) : IConsumer<IssueCreatedEvent>
 {
     public async Task Consume(ConsumeContext<IssueCreatedEvent> context)
     {
-        var log = new AuditLog { ... };
+        var log = new ActivityLog { ... };
         await repo.AddAsync(log, context.CancellationToken);
     }
 }
@@ -609,32 +619,64 @@ bên Identity, KHÔNG có FK constraint vật lý (cross-database).
 ProjectMembers lưu snapshot FullName + Email tại thời điểm add.
 ```
 
-### Index: audit-logs (Logging Service - Elasticsearch 8.x)
+### Index: activity-logs (Logging Service - Elasticsearch 8.x)
 
-Elasticsearch lưu AuditLog dưới dạng JSON document trong index `audit-logs`:
+Elasticsearch lưu `ActivityLog` dưới dạng JSON document trong index `activity-logs`.
+Cấu trúc denormalized — không cần join, Frontend đọc trực tiếp:
 
 ```json
 {
-    "id": "guid",
-    "eventType": "IssueCreated",
-    "entityType": "Issue",
-    "entityId": "guid",
-    "projectId": "guid",
-    "userId": "guid",
-    "oldValue": "string | null",
-    "newValue": "string | null",
-    "description": "string | null",
-    "timestamp": "2026-03-02T00:00:00Z"
+    "log_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    "timestamp": "2026-03-15T10:30:00+00:00",
+    "action_type": "UPDATE",
+    "actor": {
+        "id": "user-guid",
+        "name": "Nguyen Van A",
+        "code": "NV001",
+        "avatar_url": "https://cdn.example.com/avatars/user-guid.jpg"
+    },
+    "target": {
+        "type": "ISSUE",
+        "id": "issue-guid",
+        "code": "BUG-42",
+        "name": "BUG-42: Fix login crash"
+    },
+    "changes": [
+        {
+            "field": "status",
+            "old_value": "ToDo",
+            "old_code": null,
+            "old_id": null,
+            "new_value": "InProgress",
+            "new_id": null
+        },
+        {
+            "field": "assignee",
+            "old_value": "Tran Thi B",
+            "old_code": "NV002",
+            "old_id": "user-guid-b",
+            "new_value": "Nguyen Van C",
+            "new_code": "NV003",
+            "new_id": "user-guid-c"
+        }
+    ]
 }
 ```
 
-Lợi ích so với PostgreSQL:
+**Lợi ích so với thiết kế cũ (flat AuditLog):**
 
-- Append-only pattern → phù hợp hoàn toàn với audit log (không update/delete)
-- Full-text search trên `description`, `eventType` nhanh
-- Filter đa chiều: `projectId` + `userId` + date range mà không cần index phức tạp
-- Không cần EF Core migrations — schema tự động từ document
+- **Snapshot Actor**: Tên/Avatar lưu tại thời điểm hành động → lịch sử không đổi khi user cập nhật profile
+- **UI-Driven Diff**: `changes[]` chứa cả text (để render) và ID (Frontend gắn link `<a href="/users/{id}">`)
+- **Denormalized Target**: Lưu sẵn tên Issue/Project → Frontend không cần gọi thêm API
+- **Append-only**: Phù hợp hoàn toàn với Elasticsearch (không có update/delete)
+- **Full-text search**: Tìm kiếm trên `changes[].new_value`, `target.name` nhanh không cần index phức tạp
 - Default username: `elastic`, password qua `ELASTIC_PASSWORD` trong `.env`
+
+**Mapping quan trọng khi tạo index:**
+
+- `timestamp` → `date` type
+- `actor.id`, `target.id` → `keyword` (exact match, không tokenize)
+- `target.name`, `actor.name` → `text` + `keyword` (full-text search + aggregation)
 
 ---
 
@@ -729,77 +771,222 @@ public enum IssueChangeType { Created = 0, StatusChanged = 1, AssigneeChanged = 
 ### Logging.Domain
 
 ```csharp
-// Entities/AuditLog.cs
-public class AuditLog
+// Entities/ActivityLog.cs
+// Document gốc lưu trong Elasticsearch — KHÔNG có setter phụ thuộc vào EF Core
+public class ActivityLog
 {
-    public Guid Id { get; set; }
-    public string EventType { get; set; } = string.Empty;
-    public string EntityType { get; set; } = string.Empty;
-    public Guid EntityId { get; set; }
-    public Guid? ProjectId { get; set; }
-    public Guid? UserId { get; set; }
-    public string? OldValue { get; set; }
-    public string? NewValue { get; set; }
-    public string? Description { get; set; }
-    public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+    public string LogId { get; set; } = Guid.NewGuid().ToString();
+    public DateTimeOffset Timestamp { get; set; } = DateTimeOffset.UtcNow;
+    public ActionType ActionType { get; set; }
+    public LogActor Actor { get; set; } = new();
+    public LogTarget Target { get; set; } = new();
+    public List<LogChange> Changes { get; set; } = [];
 }
+
+// Entities/LogActor.cs — Snapshot tại thời điểm xảy ra hành động
+public class LogActor
+{
+    public string Id { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string? AvatarUrl { get; set; }
+}
+
+// Entities/LogTarget.cs — Entity bị tác động
+public class LogTarget
+{
+    public TargetType Type { get; set; }
+    public string Id { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+}
+
+// Entities/LogChange.cs — Một thay đổi cụ thể trong hành động UPDATE
+// Lưu cả text (để đọc) và ID (để Frontend gắn link <a>)
+public class LogChange
+{
+    public string Field { get; set; } = string.Empty;
+    public string? OldValue { get; set; }
+    public string? OldId { get; set; }
+    public string? NewValue { get; set; }
+    public string? NewId { get; set; }
+}
+
+// Enums/ActionType.cs
+public enum ActionType { CREATE, UPDATE, DELETE, ASSIGN }
+
+// Enums/TargetType.cs
+public enum TargetType { ISSUE, PROJECT, USER }
 ```
+
+> **Ghi chú:** Các `[JsonPropertyName]` attribute chỉ thêm vào tầng Infrastructure khi cấu hình Elasticsearch mapping — KHÔNG đặt trong Domain để giữ Domain thuần C#, không phụ thuộc vào thư viện serialization.
 
 ---
 
 ## 11. Shared Messaging Events
 
+> **Nguyên tắc thiết kế Event:**
+>
+> - Mỗi Event tự đủ thông tin (self-contained) → Consumer không cần gọi thêm API
+> - Chứa **Actor snapshot** (`ActorName`, `ActorAvatarUrl`) để Logging service lưu denormalized
+> - Dùng `string` thay vì enum cho Status/Priority → tránh coupling SharedKernel ↔ Tracking.Domain
+> - Dùng `record` với `required` + `init` → immutable event contracts
+> - `OccurredAt` thay vì `CreatedAt`/`ChangedAt` → đồng nhất tên field
+
 ```csharp
-// JiraLite.Shared.Messaging/Events/IssueCreatedEvent.cs
+// JiraLite.Shared.Messaging/Events/Issues/IssueCreatedEvent.cs
 public record IssueCreatedEvent
 {
     public required Guid IssueId { get; init; }
+    public required string IssueName { get; init; }     // snapshot tên Issue → Target.Name
     public required Guid ProjectId { get; init; }
-    public required string Title { get; init; }
-    public required string Priority { get; init; }
-    public required Guid CreatedById { get; init; }
-    public required DateTime CreatedAt { get; init; }
+    public required string ProjectName { get; init; }   // snapshot tên Project
+    public required string Priority { get; init; }       // "Low" | "Medium" | "High" | "Critical"
+    // Actor snapshot — Tracking service có đủ info từ ProjectMember
+    public required Guid ActorId { get; init; }
+    public required string ActorName { get; init; }
+    public string? ActorAvatarUrl { get; init; }
+    public required DateTimeOffset OccurredAt { get; init; }
 }
 
 // IssueStatusChangedEvent.cs
 public record IssueStatusChangedEvent
 {
     public required Guid IssueId { get; init; }
+    public required string IssueName { get; init; }
     public required Guid ProjectId { get; init; }
-    public required Guid ChangedById { get; init; }
-    public required string OldStatus { get; init; }
+    public required string OldStatus { get; init; }     // "ToDo" | "InProgress" | "Done" | "Rejected"
     public required string NewStatus { get; init; }
-    public required DateTime ChangedAt { get; init; }
+    public required Guid ActorId { get; init; }
+    public required string ActorName { get; init; }
+    public string? ActorAvatarUrl { get; init; }
+    public required DateTimeOffset OccurredAt { get; init; }
 }
 
 // IssueAssignedEvent.cs
 public record IssueAssignedEvent
 {
     public required Guid IssueId { get; init; }
+    public required string IssueName { get; init; }
     public required Guid ProjectId { get; init; }
-    public required Guid AssignedById { get; init; }
-    public required Guid AssignedToId { get; init; }
+    // Assignee changes — lưu cả text và ID cho LogChange
     public Guid? PreviousAssigneeId { get; init; }
-    public required DateTime AssignedAt { get; init; }
+    public string? PreviousAssigneeName { get; init; }
+    public required Guid NewAssigneeId { get; init; }
+    public required string NewAssigneeName { get; init; }
+    // Actor (người thực hiện assign, thường là Manager)
+    public required Guid ActorId { get; init; }
+    public required string ActorName { get; init; }
+    public string? ActorAvatarUrl { get; init; }
+    public required DateTimeOffset OccurredAt { get; init; }
 }
 
 // IssuePriorityChangedEvent.cs
 public record IssuePriorityChangedEvent
 {
     public required Guid IssueId { get; init; }
+    public required string IssueName { get; init; }
     public required Guid ProjectId { get; init; }
-    public required Guid ChangedById { get; init; }
-    public required string OldPriority { get; init; }
+    public required string OldPriority { get; init; }   // "Low" | "Medium" | "High" | "Critical"
     public required string NewPriority { get; init; }
-    public required DateTime ChangedAt { get; init; }
+    public required Guid ActorId { get; init; }
+    public required string ActorName { get; init; }
+    public string? ActorAvatarUrl { get; init; }
+    public required DateTimeOffset OccurredAt { get; init; }
 }
 ```
 
-> **Lưu ý:** Events dùng `string` cho Status/Priority thay vì enum, để tránh SharedKernel phụ thuộc vào Tracking.Domain enums.
+**Tại sao thêm actor snapshot vào Events?**
+
+Tracking service đã lưu snapshot user info trong `ProjectMember.FullName` — không cần gọi thêm Identity API.
+Logging consumer nhận event là có đủ data để tạo `ActivityLog` với `LogActor` đầy đủ, đảm bảo tính bất biến (immutability) của lịch sử.
 
 ---
 
-## 12. docker-compose.yml
+## 12. CQRS Pattern cho Logging Service (Option A — Direct ES Client)
+
+Logging service tách biệt hoàn toàn luồng **ghi** và **đọc**:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    WRITE SIDE                               │
+│   Tracking.API ──RabbitMQ──► MassTransit Consumer          │
+│                               └─► IActivityLogRepository    │
+│                                       └─► Elasticsearch     │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│                     READ SIDE                               │
+│   Client ──HTTP──► Logging.API                             │
+│                       └─► MediatR Query Handler            │
+│                               └─► ElasticsearchClient      │
+│                                   (inject trực tiếp)       │
+│                                       └─► Elasticsearch     │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Nguyên tắc cốt lõi:**
+
+- `IActivityLogRepository` **chỉ có `AddAsync`** — thuần write, nằm ở Domain layer
+- Query Handlers **inject `ElasticsearchClient` trực tiếp** — không qua repository
+- Query Handlers trả về **`ActivityLogDto`** — không phải Domain Entity `ActivityLog`
+- `Logging.Application.csproj` reference `Elastic.Clients.Elasticsearch` (pragmatic trade-off)
+
+### Write Side — MassTransit Consumers
+
+- **Nơi đặt:** `Logging.Application/Consumers/`
+- **Nhiệm vụ:** Nhận event từ RabbitMQ → map sang `ActivityLog` → gọi `IActivityLogRepository.AddAsync()`
+- **Fire-and-forget:** Không trả về response cho publisher
+- **Mỗi event type = 1 consumer class**
+- Consumer được đăng ký qua `AddMassTransit()` trong `ApplicationServiceExtensions`
+
+**Mapping Event → ActivityLog:**
+
+```
+IssueCreatedEvent         →  ActionType.CREATE,  Target = ISSUE, Changes = []
+IssueStatusChangedEvent   →  ActionType.UPDATE,  Changes: [{field: "status", oldValue, newValue}]
+IssueAssignedEvent        →  ActionType.ASSIGN,  Changes: [{field: "assignee", oldValue, oldId, newValue, newId}]
+IssuePriorityChangedEvent →  ActionType.UPDATE,  Changes: [{field: "priority", oldValue, newValue}]
+```
+
+### Read Side — MediatR Query Handlers
+
+- **Nơi đặt:** `Logging.Application/Features/Logs/`
+- **Pattern:** `Query` record + `Handler` class trong cùng 1 file (Vertical Slice)
+- **Inject:** `ElasticsearchClient` trực tiếp vào Handler constructor
+- **Trả về:** `Result<PaginationResponse<ActivityLogDto>>` — DTO, không phải Domain Entity
+- **Không có Command:** Logging API là read-only — ghi chỉ qua consumers
+
+### Repository Interface — Write Only
+
+```csharp
+// Logging.Domain/Interfaces/IActivityLogRepository.cs
+// CHỈ ghi — không có read methods
+public interface IActivityLogRepository
+{
+    Task AddAsync(ActivityLog log, CancellationToken ct = default);
+}
+```
+
+### Read DTO — Nằm ở Application Layer
+
+```csharp
+// Logging.Application/DTOs/ActivityLogDto.cs
+// Dùng cho read side — không phải Domain Entity
+// Flatten nested objects nếu Frontend cần, hoặc giữ nguyên cấu trúc
+public record ActivityLogDto
+{
+    public string LogId { get; init; } = string.Empty;
+    public DateTimeOffset Timestamp { get; init; }
+    public string ActionType { get; init; } = string.Empty;
+    public LogActorDto Actor { get; init; } = new();
+    public LogTargetDto Target { get; init; } = new();
+    public List<LogChangeDto> Changes { get; init; } = [];
+}
+// + LogActorDto, LogTargetDto, LogChangeDto tương ứng
+```
+
+---
+
+## 13. docker-compose.yml
 
 ```yaml
 services:
@@ -878,7 +1065,7 @@ volumes:
 
 ---
 
-## 13. Authorization Policies (Trong Tracking.API)
+## 14. Authorization Policies (Trong Tracking.API)
 
 ```csharp
 public static class PolicyNames
@@ -899,43 +1086,63 @@ public static class PolicyNames
 
 ---
 
-## 14. Key NuGet Packages (Per Service)
+## 15. Key NuGet Packages (Per Service — .NET 8.0)
+
+> **Lưu ý quan trọng:** Tất cả projects đều target `net8.0`. Không dùng package version của .NET 9/10 cho .NET 8 project (ví dụ: `Microsoft.AspNetCore.OpenApi 8.x` chứ không phải `10.x`).
 
 ### Gateway
 
-- `Yarp.ReverseProxy`
+- `Yarp.ReverseProxy` 2.x
 
 ### Identity Service
 
-- `MediatR` (CQRS)
-- `Microsoft.EntityFrameworkCore` + `Npgsql.EntityFrameworkCore.PostgreSQL`
-- `Microsoft.AspNetCore.Identity` (PasswordHasher)
-- `System.IdentityModel.Tokens.Jwt`
-- `Microsoft.AspNetCore.Authentication.JwtBearer`
-- `Asp.Versioning.Http` (API Versioning)
+- `MediatR` 12.x
+- `Microsoft.EntityFrameworkCore` 8.x + `Npgsql.EntityFrameworkCore.PostgreSQL` 8.x
+- `Microsoft.AspNetCore.Identity` (PasswordHasher — built-in, không cần NuGet riêng)
+- `System.IdentityModel.Tokens.Jwt` 7.x
+- `Microsoft.AspNetCore.Authentication.JwtBearer` 8.x
+- `Asp.Versioning.Http` 8.x
+- `Microsoft.AspNetCore.OpenApi` 8.x
 
 ### Tracking Service
 
-- `MediatR` (CQRS)
-- `Microsoft.EntityFrameworkCore` + `Npgsql.EntityFrameworkCore.PostgreSQL`
-- `Microsoft.AspNetCore.Authentication.JwtBearer`
-- `MassTransit.RabbitMQ` (Publish events)
-- `Asp.Versioning.Http` (API Versioning)
+- `MediatR` 12.x
+- `Microsoft.EntityFrameworkCore` 8.x + `Npgsql.EntityFrameworkCore.PostgreSQL` 8.x
+- `Microsoft.AspNetCore.Authentication.JwtBearer` 8.x
+- `MassTransit.RabbitMQ` 8.x (publish events)
+- `Asp.Versioning.Http` 8.x
+- `Microsoft.AspNetCore.OpenApi` 8.x
 
 ### Logging Service
 
-- `MediatR` (CQRS — cho query handlers)
-- `Elastic.Clients.Elasticsearch` (Elasticsearch 8.x client)
-- `MassTransit.RabbitMQ` (Consume events)
-- `Asp.Versioning.Http` (API Versioning)
+**Logging.Domain** — không có NuGet phụ thuộc (pure C# classes)
+
+**Logging.Application:**
+
+- `MediatR` 12.x (Query handlers — Read side)
+- `MassTransit.RabbitMQ` 8.x (Consumers — Write side)
+- `Elastic.Clients.Elasticsearch` 8.x (Query handlers inject trực tiếp — Option A)
+- Project reference: `Logging.Domain`, `JiraLite.Shared.Messaging`
+
+**Logging.Infrastructure:**
+
+- `Elastic.Clients.Elasticsearch` 8.x (ES client factory + Repository implementation)
+- Project reference: `Logging.Domain`
+
+**Logging.API:**
+
+- `Microsoft.AspNetCore.OpenApi` 8.x
+- `Asp.Versioning.Http` 8.x
+- Project reference: `Logging.Application`, `Logging.Infrastructure`
 
 ### SharedKernel
 
 - Không có NuGet ngoài — chỉ pure C# DTOs/records
+- **Target framework: `net8.0`** (nhất quán với tất cả services)
 
 ---
 
-## 15. Tiến độ triển khai (Refactoring Phases)
+## 16. Tiến độ triển khai (Refactoring Phases)
 
 ### Phase 1: Restructure Solution ⬜
 
@@ -970,19 +1177,31 @@ public static class PolicyNames
 - [ ] Cấu hình routes → Identity/Tracking/Logging clusters
 - [ ] Test end-to-end qua Gateway
 
-### Phase 5: Messaging (RabbitMQ) ⬜
+### Phase 5: Messaging Events (SharedKernel) ⬜
 
-- [ ] Thêm RabbitMQ vào docker-compose
-- [ ] SharedKernel.Messaging — Event DTOs
-- [ ] Tracking.Application — Publish events (MassTransit)
-- [ ] Logging.Application — Consumers
+- [ ] Fix `JiraLite.Shared.Messaging` target framework → `net8.0`
+- [ ] Fix `JiraLite.Shared.Contracts` target framework → `net8.0`
+- [ ] Tạo 4 Issue events với actor snapshot fields (Section 11)
+- [ ] Tracking.Application — Publish events bằng MassTransit (cần cập nhật event structure)
 
 ### Phase 6: Logging Service ⬜
 
-- [ ] Logging.Domain — AuditLog entity
-- [ ] Logging.Infrastructure — LoggingDbContext + Migrations
-- [ ] Logging.Application — Consumers + AuditLogService
-- [ ] Logging.API — Read-only query endpoints
+- [ ] **Domain:** Dọn dẹp entity files (xóa `ActivitiLog.cs` lỗi, chuẩn hóa namespace)
+- [ ] **Domain:** Tạo `IActivityLogRepository` interface
+- [ ] **Domain:** Tạo `LogErrors.cs`
+- [ ] **Infrastructure:** Cài `Elastic.Clients.Elasticsearch` 8.x, tạo `ElasticsearchClientFactory`
+- [ ] **Infrastructure:** Tạo `IndexMappings.cs` — explicit mapping cho `activity-logs` index
+- [ ] **Infrastructure:** Implement `ActivityLogRepository`
+- [ ] **Infrastructure:** `InfrastructureServiceExtensions` — đăng ký ES client + repository
+- [ ] **Application:** Cài `MediatR` 12.x + `MassTransit.RabbitMQ` 8.x
+- [ ] **Application:** Tạo 4 Consumers (Write side)
+- [ ] **Application:** Tạo 3 Query Handlers (Read side)
+- [ ] **Application:** `ApplicationServiceExtensions` — đăng ký MediatR + MassTransit consumers
+- [ ] **API:** Dọn dẹp `Program.cs` (xóa weatherforecast template)
+- [ ] **API:** Fix package version (`Microsoft.AspNetCore.OpenApi` 8.x)
+- [ ] **API:** `ApiServiceCollectionExtensions` — đăng ký OpenAPI, Versioning
+- [ ] **API:** Tạo `LogsApi.cs` — read-only Minimal API endpoints
+- [ ] **API:** Cấu hình `appsettings.json` với Elasticsearch + RabbitMQ + port 5003
 
 ### Phase 7: Docker & Testing ⬜
 
@@ -993,28 +1212,28 @@ public static class PolicyNames
 
 ---
 
-## 16. Mapping: Cũ → Mới
+## 17. Mapping: Cũ → Mới
 
-| Project cũ                               | Đích mới                                                         |
-| ---------------------------------------- | ---------------------------------------------------------------- |
-| `JiraLite.Auth.Api`                      | `src/Services/Identity/Identity.API`                             |
-| `JiraLite.Auth.Infrastructure`           | `src/Services/Identity/Identity.Infrastructure`                  |
-| Auth entities (User, RefreshToken)       | `src/Services/Identity/Identity.Domain/Entities`                 |
-| `JiraLite.Api`                           | `src/Services/Tracking/Tracking.API`                             |
-| `JiraLite.Application`                   | `src/Services/Tracking/Tracking.Application`                     |
-| `JiraLite.Infrastructure`                | `src/Services/Tracking/Tracking.Infrastructure`                  |
-| Tracking entities (Project, Issue, etc.) | `src/Services/Tracking/Tracking.Domain/Entities`                 |
-| `JiraLite.Authorization`                 | `src/Services/Tracking/Tracking.API/Authorization/`              |
-| `JiraLite.Share/Common`                  | `src/SharedKernel/JiraLite.Shared.Contracts/Common`              |
-| `JiraLite.Share/Settings`                | `src/SharedKernel/JiraLite.Shared.Contracts/Settings`            |
-| `JiraLite.Share/Enums`                   | Phân tán vào Domain của từng Service                             |
-| `JiraLite.Share/Dtos`                    | Phân tán vào Application/DTOs của từng Service                   |
-| `DbLogService` (ILogService)             | Thay bằng RabbitMQ publish + Logging Service consume             |
-| `IssueChangeLog` entity                  | **Xóa** khỏi Tracking DB → thay bằng `AuditLog` trong Logging DB |
+| Project cũ                               | Đích mới                                                                            |
+| ---------------------------------------- | ----------------------------------------------------------------------------------- |
+| `JiraLite.Auth.Api`                      | `src/Services/Identity/Identity.API`                                                |
+| `JiraLite.Auth.Infrastructure`           | `src/Services/Identity/Identity.Infrastructure`                                     |
+| Auth entities (User, RefreshToken)       | `src/Services/Identity/Identity.Domain/Entities`                                    |
+| `JiraLite.Api`                           | `src/Services/Tracking/Tracking.API`                                                |
+| `JiraLite.Application`                   | `src/Services/Tracking/Tracking.Application`                                        |
+| `JiraLite.Infrastructure`                | `src/Services/Tracking/Tracking.Infrastructure`                                     |
+| Tracking entities (Project, Issue, etc.) | `src/Services/Tracking/Tracking.Domain/Entities`                                    |
+| `JiraLite.Authorization`                 | `src/Services/Tracking/Tracking.API/Authorization/`                                 |
+| `JiraLite.Share/Common`                  | `src/SharedKernel/JiraLite.Shared.Contracts/Common`                                 |
+| `JiraLite.Share/Settings`                | `src/SharedKernel/JiraLite.Shared.Contracts/Settings`                               |
+| `JiraLite.Share/Enums`                   | Phân tán vào Domain của từng Service                                                |
+| `JiraLite.Share/Dtos`                    | Phân tán vào Application/DTOs của từng Service                                      |
+| `DbLogService` (ILogService)             | Thay bằng RabbitMQ publish + Logging Service consume                                |
+| `IssueChangeLog` entity                  | **Xóa** khỏi Tracking DB → thay bằng `ActivityLog` trong Logging DB (Elasticsearch) |
 
 ---
 
-## 17. Coding Guidelines
+## 18. Coding Guidelines
 
 ### Naming Conventions
 
@@ -1035,7 +1254,7 @@ public static class PolicyNames
 - Dùng `AsNoTracking()` cho read-only queries
 - Events dùng `string` thay vì enum để tránh coupling SharedKernel ↔ Domain
 - Mỗi Service chạy trên process riêng, cổng riêng
-- IssueChangeLog **không còn** là bảng trong Tracking DB — audit trail xử lý bởi Logging Service (Elasticsearch)
+- IssueChangeLog **không còn** là bảng trong Tracking DB — lịch sử hoạt động xử lý bởi Logging Service (Elasticsearch) dưới dạng `ActivityLog` với actor snapshot và UI-driven diff
 
 ### Configuration (appsettings.json mẫu)
 
@@ -1082,7 +1301,7 @@ public static class PolicyNames
         "Uri": "http://localhost:9200",
         "Username": "elastic",
         "Password": "",
-        "IndexName": "audit-logs"
+        "IndexName": "activity-logs"
     },
     "RabbitMQ": {
         "Host": "localhost",
