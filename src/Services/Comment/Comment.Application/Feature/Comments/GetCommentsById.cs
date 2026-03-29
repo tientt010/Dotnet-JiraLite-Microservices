@@ -15,14 +15,13 @@ public static class GetCommentsById
     {
         public async Task<Result<CommentResponse>> Handle(Query request, CancellationToken ct)
         {
-            var commentDto = await context.ActivityLogs
+            var commentDto = await context.Comments
                 .Where(c => c.Id == request.CommentId && c.DeletedAt == null)
                 .Select(c => new CommentResponse
                 {
                     Id = c.Id,
                     IssueId = c.IssueId,
                     ProjectId = c.ProjectId,
-                    ParentCommentId = c.ParentCommentId,
                     AuthorId = c.AuthorId,
                     AuthorCode = c.AuthorCode,
                     AuthorName = c.AuthorName,

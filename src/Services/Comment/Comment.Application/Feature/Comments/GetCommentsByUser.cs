@@ -24,22 +24,20 @@ public static class GetCommentsByUser
 
         public async Task<Result<List<CommentResponse>>> Handle(Query request, CancellationToken ct)
         {
-            var comments = await context.ActivityLogs
-                .Where(c => c.AuthorId == request.UserId)
+            var comments = await context.Comments
+                .Where(c => c.AuthorId == request.UserId && c.ParentCommentId == null)
                 .OrderBy(c => c.CreatedAt)
                 .Select(c => new CommentResponse
                 {
                     Id = c.Id,
                     IssueId = c.IssueId,
                     ProjectId = c.ProjectId,
-                    ParentCommentId = c.ParentCommentId,
                     AuthorId = c.AuthorId,
                     AuthorCode = c.AuthorCode,
                     AuthorName = c.AuthorName,
                     AuthorAvatarUrl = c.AuthorAvatarUrl,
                     Content = c.Content,
-                    CreatedAt = c.CreatedAt,
-                    UpdatedAt = c.UpdatedAt
+                    ReplyCount = c.Replies.Count
                 })
                 .ToListAsync(ct);
             return Result<List<CommentResponse>>.Success(comments);
