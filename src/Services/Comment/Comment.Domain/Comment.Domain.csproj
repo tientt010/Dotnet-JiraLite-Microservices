@@ -8,7 +8,12 @@
 
   <ItemGroup>
     <Folder Include="Entities\" />
+    <Folder Include="Errors\" />
     <Folder Include="Interfaces\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\SharedKernel\JiraLite.Share.Contracts\JiraLite.Shared.Contracts.csproj" />
   </ItemGroup>
 
 </Project>
