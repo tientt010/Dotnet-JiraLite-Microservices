@@ -19,18 +19,7 @@ public static class DependencyInjection
 
         services.AddDbContext<LoggingDbContext>(options =>
         {
-            options.UseNpgsql(connectionString, npgsqlOptions =>
-            {
-                npgsqlOptions.EnableRetryOnFailure(
-                    maxRetryCount: 3,
-                    maxRetryDelay: TimeSpan.FromSeconds(5),
-                    errorCodesToAdd: null);
-
-                npgsqlOptions.CommandTimeout(30);
-            });
-
-            options.EnableSensitiveDataLogging(false);
-            options.EnableDetailedErrors(false);
+            options.UseNpgsql(connectionString);
         });
 
         services.AddScoped<IActivityLogRepository, ActivityLogRepository>();
