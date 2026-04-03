@@ -20,10 +20,6 @@ public class CommentDbContext(DbContextOptions<CommentDbContext> options) : DbCo
             comment.Property(x => x.Id)
                 .HasDefaultValueSql("gen_random_uuid()");
 
-
-            comment.Property(x => x.ProjectId)
-                .IsRequired();
-
             comment.Property(x => x.IssueId)
                 .IsRequired();
 
@@ -56,9 +52,9 @@ public class CommentDbContext(DbContextOptions<CommentDbContext> options) : DbCo
             comment.HasQueryFilter(c => c.DeletedAt == null);
 
             // Composite index với filter
-            comment.HasIndex(x => new { x.ProjectId, x.IssueId })
-                .HasDatabaseName("IX_Comments_ProjectId_IssueId_Active")
-                .HasFilter("\"DeletedAt\" IS NULL");  // Partial index
+            comment.HasIndex(x => x.IssueId)
+                .HasDatabaseName("IX_Comments_IssueId_Active")
+                .HasFilter("\"DeletedAt\" IS NULL");
 
             comment.HasIndex(x => x.AuthorId)
                 .HasDatabaseName("IX_Comments_AuthorId_Active")
