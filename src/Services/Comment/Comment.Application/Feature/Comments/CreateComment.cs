@@ -1,4 +1,5 @@
 using System;
+using Comment.Application.Dtos;
 using Comment.Application.Interfaces;
 using Comment.Domain.Interfaces;
 using FluentValidation;
@@ -11,21 +12,19 @@ public static class CreateComment
 {
     public record Command(
         Guid IssueId,
-        Guid ProjectId,
         Guid? ParentCommentId,
         Guid AuthorId,
         string AuthorCode,
         string AuthorName,
         string? AuthorAvatarUrl,
         string Content
-    ) : IRequest<Result>;
+    ) : IRequest<Result<CommentResponse>>;
 
     public class Validator : AbstractValidator<Command>
     {
         public Validator()
         {
             RuleFor(x => x.IssueId).NotEmpty();
-            RuleFor(x => x.ProjectId).NotEmpty();
             RuleFor(x => x.AuthorId).NotEmpty();
             RuleFor(x => x.AuthorCode).NotEmpty();
             RuleFor(x => x.AuthorName).NotEmpty();
@@ -36,29 +35,26 @@ public static class CreateComment
     public class Handler(
         ICommentRepository commentRepository,
         ITrackingService trackingService,
-        ILogger<Handler> logger) : IRequestHandler<Command, Result>
+        ILogger<Handler> logger) : IRequestHandler<Command, Result<CommentResponse>>
     {
 
-        public async Task<Result> Handle(Command request, CancellationToken ct)
+        public async Task<Result<CommentResponse>> Handle(Command request, CancellationToken ct)
         {
 
-            var validationResult = await trackingService.ValidateAsync(
-                request.ProjectId,
+            var membershipResult = await trackingService.ValidateMembershipAsync(
                 request.IssueId,
                 request.AuthorId,
                 ct);
 
-            if (!validationResult.IsSuccess)
+            if (!membershipResult.IsSuccess)
             {
-                logger.LogWarning("Tracking validation failed: {Error}", validationResult.Error);
-                return validationResult;
+                return Result<CommentResponse>.Failure(membershipResult.Error);
             }
 
             var comment = new Domain.Entities.Comment
             {
                 Id = Guid.NewGuid(),
                 IssueId = request.IssueId,
-                ProjectId = request.ProjectId,
                 ParentCommentId = request.ParentCommentId,
                 AuthorId = request.AuthorId,
                 AuthorCode = request.AuthorCode,
@@ -72,7 +68,19 @@ public static class CreateComment
             await commentRepository.AddAsync(comment);
             logger.LogInformation("Comment created successfully.");
 
-            return Result.Success();
+            return Result<CommentResponse>.Success(new CommentResponse
+            {
+                Id = comment.Id,
+                IssueId = comment.IssueId,
+                AuthorId = comment.AuthorId,
+                AuthorCode = comment.AuthorCode,
+                AuthorName = comment.AuthorName,
+                AuthorAvatarUrl = comment.AuthorAvatarUrl,
+                Content = comment.Content,
+                CreatedAt = comment.CreatedAt,
+                UpdatedAt = comment.UpdatedAt,
+                ReplyCount = 0
+            });
         }
     }
 

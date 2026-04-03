@@ -21,7 +21,6 @@ public static class GetCommentsById
                 {
                     Id = c.Id,
                     IssueId = c.IssueId,
-                    ProjectId = c.ProjectId,
                     AuthorId = c.AuthorId,
                     AuthorCode = c.AuthorCode,
                     AuthorName = c.AuthorName,

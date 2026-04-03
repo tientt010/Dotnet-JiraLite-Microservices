@@ -4,5 +4,5 @@ namespace Comment.Application.Interfaces;
 
 public interface ITrackingService
 {
-    Task<Result> ValidateAsync(Guid projectId, Guid issueId, Guid authorId, CancellationToken ct);
+    Task<Result> ValidateMembershipAsync(Guid issueId, Guid authorId, CancellationToken ct);
 }

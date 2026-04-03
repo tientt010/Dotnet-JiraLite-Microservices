@@ -4,7 +4,6 @@ public record class CommentResponse
 {
     public Guid Id { get; init; }
     public Guid IssueId { get; init; }
-    public Guid ProjectId { get; init; }
     public Guid AuthorId { get; init; }
     public string AuthorCode { get; init; } = string.Empty;
     public string AuthorName { get; init; } = string.Empty;

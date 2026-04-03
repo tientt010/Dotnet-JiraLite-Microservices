@@ -1,6 +1,7 @@
 using System;
 using System.Reflection;
 using Comment.Application.Behaviors;
+using Comment.Application.Interfaces;
 using FluentValidation;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
