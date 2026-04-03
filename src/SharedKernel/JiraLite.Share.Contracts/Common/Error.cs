@@ -15,4 +15,6 @@ public record Error(string Code, string Description)
     public static readonly Error EmptyUserId = new("System.EmptyUserId", "User ID cannot be empty.");
     public static readonly Error InvalidAccessToken = new("System.InvalidAccessToken", "The access token is invalid.");
     public static readonly Error ValidationError = new("Validation.Failed", "One or more validation errors occurred.");
+    public static readonly Error Unauthorized = new("System.Unauthorized", "Unauthorized access.");
+    public static readonly Error NotFound = new("System.NotFound", "The requested resource was not found.");
 }
