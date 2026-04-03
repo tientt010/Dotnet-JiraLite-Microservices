@@ -3,8 +3,7 @@ namespace Comment.Domain.Interfaces;
 
 public interface ICommentRepository
 {
-    Task<Entities.Comment?> GetByIdAsync(Guid commentId);
-    Task AddAsync(Entities.Comment comment);
-    Task UpdateAsync(Entities.Comment comment);
-    // Task DeleteAsync(Guid commentId);
+    Task<Entities.Comment?> GetByIdAsync(Guid commentId, CancellationToken ct = default);
+    Task AddAsync(Entities.Comment comment, CancellationToken ct = default);
+    Task UpdateAsync(Entities.Comment comment, CancellationToken ct = default);
 }
