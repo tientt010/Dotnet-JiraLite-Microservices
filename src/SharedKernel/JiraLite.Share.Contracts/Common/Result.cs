@@ -1,6 +1,6 @@
 using JiraLite.Share.Common;
 
-// 2. Class Result gốc (Dành cho các action KHÔNG trả về data - tương đương void/Task)
+// Class Result gốc
 public class Result
 {
     public bool IsSuccess { get; }
@@ -25,7 +25,7 @@ public class Result
     public static Result ValidationFailure(Error[] errors) => new(false, new Error("ValidationError", "Dữ liệu đầu vào không hợp lệ"), errors);
 }
 
-// 3. Class Result<TValue> kế thừa từ Result (Dành cho các action CÓ trả về data)
+// Class Result<TValue> kế thừa từ Result
 public class Result<TValue> : Result
 {
     public TValue? Value { get; }
